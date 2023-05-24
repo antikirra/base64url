@@ -9,6 +9,7 @@ composer require antikirra/base64url
 ## Basic usage
 
 ```php
+<?php
 require __DIR__ . '/vendor/autoload.php';
 
 // only if the function has not been defined in the global scope
