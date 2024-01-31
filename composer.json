@@ -5,11 +5,10 @@
   "license": "MIT",
   "autoload": {
     "psr-4": {
-      "Antikirra\\Base64Url\\": ""
+      "Antikirra\\": ""
     },
     "files": [
-      "bootstrap.php",
-      "alias.php"
+      "base64url.php"
     ]
   },
   "authors": [
