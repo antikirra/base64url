@@ -3,7 +3,7 @@
 ## Install
 
 ```console
-composer require antikirra/base64url
+composer require antikirra/base64url:^2.0
 ```
 
 ## Basic usage
