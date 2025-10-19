@@ -216,3 +216,276 @@ describe('base64url_encode and base64url_decode', function () {
         expect($decoded)->toBe($allBytes);
     });
 });
+
+describe('base64url edge cases', function () {
+    it('handles multiline strings with \\n', function () {
+        $multiline = "First line\nSecond line\nThird line";
+        $encoded = base64url_encode($multiline);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($multiline);
+        expect($encoded)->not->toContain("\n");
+        expect($encoded)->toMatch('/^[A-Za-z0-9_-]+$/');
+    });
+
+    it('handles multiline strings with \\r\\n', function () {
+        $multiline = "First line\r\nSecond line\r\nThird line";
+        $encoded = base64url_encode($multiline);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($multiline);
+        expect($encoded)->not->toContain("\r");
+        expect($encoded)->not->toContain("\n");
+    });
+
+    it('handles multiline strings with mixed line endings', function () {
+        $multiline = "Line with \\n\nLine with \\r\\n\r\nLine with \\r\rEnd";
+        $encoded = base64url_encode($multiline);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($multiline);
+    });
+
+    it('handles strings with only whitespace', function () {
+        $testCases = [
+            ' ',
+            '   ',
+            "\t",
+            "\n",
+            "\r\n",
+            " \t\n\r",
+        ];
+
+        foreach ($testCases as $whitespace) {
+            $encoded = base64url_encode($whitespace);
+            $decoded = base64url_decode($encoded);
+
+            expect($decoded)->toBe($whitespace);
+        }
+    });
+
+    it('handles strings with leading and trailing whitespace', function () {
+        $testCases = [
+            ' hello ',
+            "\nhello\n",
+            "\r\nhello\r\n",
+            "\thello\t",
+            "  \n\t hello world \t\n  ",
+        ];
+
+        foreach ($testCases as $input) {
+            $encoded = base64url_encode($input);
+            $decoded = base64url_decode($encoded);
+
+            expect($decoded)->toBe($input);
+        }
+    });
+
+    it('handles very long single lines', function () {
+        $longLine = str_repeat('a', 10000);
+        $encoded = base64url_encode($longLine);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($longLine);
+        expect($encoded)->not->toContain('=');
+    });
+
+    it('handles null bytes in strings', function () {
+        $withNull = "before\x00after";
+        $encoded = base64url_encode($withNull);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($withNull);
+        expect(strlen($decoded))->toBe(12); // 6 + 1 null + 5
+    });
+
+    it('handles multiple consecutive null bytes', function () {
+        $multiNull = "start\x00\x00\x00end";
+        $encoded = base64url_encode($multiNull);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($multiNull);
+        expect(strlen($decoded))->toBe(11);
+    });
+
+    it('handles strings that are exactly multiples of 3 bytes', function () {
+        // 3 bytes = no padding needed in base64
+        $exact3 = 'abc'; // 3 bytes
+        $exact6 = 'abcdef'; // 6 bytes
+        $exact9 = 'abcdefghi'; // 9 bytes
+
+        expect(base64url_decode(base64url_encode($exact3)))->toBe($exact3);
+        expect(base64url_decode(base64url_encode($exact6)))->toBe($exact6);
+        expect(base64url_decode(base64url_encode($exact9)))->toBe($exact9);
+    });
+
+    it('handles strings with 1 byte padding requirement', function () {
+        // 4 bytes, 5 bytes, etc. need 1 padding char
+        $need1pad_4 = 'abcd'; // 4 bytes
+        $need1pad_5 = 'abcde'; // 5 bytes
+
+        $encoded4 = base64url_encode($need1pad_4);
+        $encoded5 = base64url_encode($need1pad_5);
+
+        expect($encoded4)->not->toContain('=');
+        expect($encoded5)->not->toContain('=');
+        expect(base64url_decode($encoded4))->toBe($need1pad_4);
+        expect(base64url_decode($encoded5))->toBe($need1pad_5);
+    });
+
+    it('handles strings with 2 bytes padding requirement', function () {
+        // 1 byte, 2 bytes need 2 padding chars
+        $need2pad_1 = 'a'; // 1 byte
+        $need2pad_2 = 'ab'; // 2 bytes
+
+        $encoded1 = base64url_encode($need2pad_1);
+        $encoded2 = base64url_encode($need2pad_2);
+
+        expect($encoded1)->not->toContain('=');
+        expect($encoded2)->not->toContain('=');
+        expect(base64url_decode($encoded1))->toBe($need2pad_1);
+        expect(base64url_decode($encoded2))->toBe($need2pad_2);
+    });
+
+    it('handles JSON strings', function () {
+        $json = '{"name":"John","age":30,"city":"New York","data":{"nested":true}}';
+        $encoded = base64url_encode($json);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($json);
+        expect(json_decode($decoded, true))->toBeArray();
+    });
+
+    it('handles XML strings', function () {
+        $xml = '<?xml version="1.0"?><root><item id="1">Test</item></root>';
+        $encoded = base64url_encode($xml);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($xml);
+    });
+
+    it('handles strings with only special characters', function () {
+        $special = '!@#$%^&*()_+-=[]{}|;:\'",.<>?/\\~`';
+        $encoded = base64url_encode($special);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($special);
+        expect($encoded)->toMatch('/^[A-Za-z0-9_-]+$/');
+    });
+
+    it('handles repeated characters', function () {
+        $repeated = str_repeat('x', 1000);
+        $encoded = base64url_encode($repeated);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($repeated);
+    });
+
+    it('handles alternating patterns', function () {
+        $pattern = str_repeat('01', 500);
+        $encoded = base64url_encode($pattern);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($pattern);
+    });
+
+    it('handles binary data with all zeros', function () {
+        $zeros = str_repeat("\x00", 100);
+        $encoded = base64url_encode($zeros);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($zeros);
+        expect(strlen($decoded))->toBe(100);
+    });
+
+    it('handles binary data with all ones', function () {
+        $ones = str_repeat("\xff", 100);
+        $encoded = base64url_encode($ones);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($ones);
+    });
+
+    it('handles markdown formatted text', function () {
+        $markdown = "# Header\n\n## Subheader\n\n- List item 1\n- List item 2\n\n**Bold** and *italic*";
+        $encoded = base64url_encode($markdown);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($markdown);
+    });
+
+    it('handles code snippets with indentation', function () {
+        $code = "function test() {\n    if (true) {\n        return 'hello';\n    }\n}";
+        $encoded = base64url_encode($code);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($code);
+    });
+
+    it('handles URLs and query strings', function () {
+        $url = 'https://example.com/path?param1=value1&param2=value2&special=!@#$%';
+        $encoded = base64url_encode($url);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($url);
+        expect($encoded)->toMatch('/^[A-Za-z0-9_-]+$/');
+    });
+
+    it('handles base64 encoded data as input', function () {
+        // Encode something with standard base64, then encode that with base64url
+        $original = 'test data';
+        $standardBase64 = base64_encode($original);
+        $base64urlEncoded = base64url_encode($standardBase64);
+        $decoded = base64url_decode($base64urlEncoded);
+
+        expect($decoded)->toBe($standardBase64);
+    });
+
+    it('handles email addresses', function () {
+        $email = 'test.user+tag@example.co.uk';
+        $encoded = base64url_encode($email);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($email);
+    });
+
+    it('handles file paths', function () {
+        $testCases = [
+            '/usr/local/bin/php',
+            'C:\\Windows\\System32\\cmd.exe',
+            '../../../etc/passwd',
+            './relative/path/to/file.txt',
+        ];
+
+        foreach ($testCases as $path) {
+            $encoded = base64url_encode($path);
+            $decoded = base64url_decode($encoded);
+
+            expect($decoded)->toBe($path);
+        }
+    });
+
+    it('handles emoji sequences', function () {
+        $emojis = '👨‍👩‍👧‍👦🏳️‍🌈👍🏿';
+        $encoded = base64url_encode($emojis);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($emojis);
+    });
+
+    it('handles right-to-left text', function () {
+        $rtl = 'مرحبا بك في العالم'; // Arabic
+        $encoded = base64url_encode($rtl);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($rtl);
+    });
+
+    it('handles mixed RTL and LTR text', function () {
+        $mixed = 'Hello مرحبا World עולם';
+        $encoded = base64url_encode($mixed);
+        $decoded = base64url_decode($encoded);
+
+        expect($decoded)->toBe($mixed);
+    });
+});
